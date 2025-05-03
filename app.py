@@ -1,39 +1,44 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 import firebase_admin
 from firebase_admin import credentials, db
 
-# Firebase initialization
-firebase_url = "https://pollutiondata-3ba48-default-rtdb.firebaseio.com/"
-cred = credentials.Certificate("your-service-account-key.json")  # Upload this file too
+# Initialize Firebase connection
+cred = credentials.Certificate("firebase-key.json")  # 🔁 Updated key filename
 firebase_admin.initialize_app(cred, {
-    'databaseURL': firebase_url
+    'databaseURL': 'https://pollutiondata-3ba48-default-rtdb.firebaseio.com/'  # 🔁 Replace with your actual Firebase DB URL
 })
 
-# Title
-st.title("🚗 Pollution Monitoring Dashboard")
-st.markdown("Displays high-severity filtered pollution data pushed from Edge to Firebase.")
+st.title("Vehicle Pollution Monitoring Dashboard")
 
-# Firebase path
-data_ref = db.reference('/filtered_pollution_data')
+# Fetch data from Firebase
+ref = db.reference('/')
+data = ref.get()
 
-# Fetch and display data
-def fetch_data():
-    data = data_ref.get()
-    if data:
-        df = pd.DataFrame.from_dict(data, orient='index')
-        df.reset_index(drop=True, inplace=True)
-        return df
-    else:
-        return pd.DataFrame()
+if data:
+    df = pd.DataFrame(data).T  # Convert dict to DataFrame
 
-df = fetch_data()
-
-if not df.empty:
-    st.success("High severity data loaded from Firebase!")
+    st.subheader("Raw Pollution Data")
     st.dataframe(df)
 
-    pollutant_cols = ['CO2 Emissions', 'NOx Emissions', 'PM2.5 Emissions', 'VOC Emissions', 'SO2 Emissions']
-    st.line_chart(df[pollutant_cols])
+    # Convert relevant columns to numeric if needed
+    for col in ['CO2 Emissions', 'NOx Emissions', 'PM2.5 Emissions', 'VOC Emissions', 'SO2 Emissions']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Plot each pollutant
+    st.subheader("Pollution Visualizations")
+    for pollutant in ['CO2 Emissions', 'NOx Emissions', 'PM2.5 Emissions', 'VOC Emissions', 'SO2 Emissions']:
+        st.write(f"### {pollutant} Over Time")
+        fig, ax = plt.subplots()
+        df[pollutant].plot(kind='line', ax=ax)
+        st.pyplot(fig)
+
+    # Heatmap for correlation
+    st.subheader("Pollutant Correlation Heatmap")
+    fig, ax = plt.subplots()
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm', ax=ax)
+    st.pyplot(fig)
 else:
-    st.warning("No high-severity pollution data found in Firebase.")
+    st.warning("No data found in Firebase.")
